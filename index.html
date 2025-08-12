@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Fútbol Pong Retro</title>
 <style>
   body {
@@ -13,6 +13,7 @@
     flex-direction: column;
     align-items: center;
     margin: 0;
+    overflow: hidden;
   }
   canvas {
     background: black;
@@ -28,6 +29,28 @@
     font-size: 18px;
     margin-top: 5px;
   }
+  .controles {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 5px;
+    position: fixed;
+    bottom: 0;
+  }
+  .lado {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  button {
+    background: white;
+    color: black;
+    border: none;
+    padding: 20px;
+    font-size: 18px;
+    border-radius: 8px;
+    opacity: 0.7;
+  }
 </style>
 </head>
 <body>
@@ -36,6 +59,17 @@
 <div id="tiempo">Tiempo: 60</div>
 <canvas id="gameCanvas" width="800" height="400"></canvas>
 
+<div class="controles">
+  <div class="lado">
+    <button id="p1up">▲</button>
+    <button id="p1down">▼</button>
+  </div>
+  <div class="lado">
+    <button id="p2up">▲</button>
+    <button id="p2down">▼</button>
+  </div>
+</div>
+
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -43,38 +77,40 @@ const ctx = canvas.getContext("2d");
 let jugador1Y = canvas.height / 2 - 40;
 let jugador2Y = canvas.height / 2 - 40;
 const paletaAltura = 80, paletaAncho = 10;
-const velocidadPaleta = 12; // Más rápido
+const velocidadPaleta = 12;
 
-let keysPressed = {}; // Para movimiento continuo
+let keysPressed = {};
 
 let pelotaX = canvas.width / 2, pelotaY = canvas.height / 2;
 let pelotaRadio = 5;
 let velPelotaX = 4, velPelotaY = 3;
 
 let score1 = 0, score2 = 0;
-let tiempo = 60; // segundos
+let tiempo = 60;
 let intervaloTiempo;
 
-document.addEventListener("keydown", (e) => keysPressed[e.key] = true);
-document.addEventListener("keyup", (e) => keysPressed[e.key] = false);
+// Botones táctiles
+const p1up = document.getElementById("p1up");
+const p1down = document.getElementById("p1down");
+const p2up = document.getElementById("p2up");
+const p2down = document.getElementById("p2down");
+
+function setButtonHold(btn, key) {
+  btn.addEventListener("touchstart", e => { e.preventDefault(); keysPressed[key] = true; });
+  btn.addEventListener("touchend", e => { e.preventDefault(); keysPressed[key] = false; });
+}
+
+setButtonHold(p1up, "w");
+setButtonHold(p1down, "s");
+setButtonHold(p2up, "ArrowUp");
+setButtonHold(p2down, "ArrowDown");
 
 function moverPaletas() {
-  // Jugador 1
-  if (keysPressed["w"] || keysPressed["W"]) {
-    jugador1Y -= velocidadPaleta;
-  }
-  if (keysPressed["s"] || keysPressed["S"]) {
-    jugador1Y += velocidadPaleta;
-  }
-  // Jugador 2
-  if (keysPressed["ArrowUp"]) {
-    jugador2Y -= velocidadPaleta;
-  }
-  if (keysPressed["ArrowDown"]) {
-    jugador2Y += velocidadPaleta;
-  }
+  if (keysPressed["w"]) jugador1Y -= velocidadPaleta;
+  if (keysPressed["s"]) jugador1Y += velocidadPaleta;
+  if (keysPressed["ArrowUp"]) jugador2Y -= velocidadPaleta;
+  if (keysPressed["ArrowDown"]) jugador2Y += velocidadPaleta;
 
-  // Evitar que salgan del campo
   jugador1Y = Math.max(0, Math.min(canvas.height - paletaAltura, jugador1Y));
   jugador2Y = Math.max(0, Math.min(canvas.height - paletaAltura, jugador2Y));
 }
@@ -84,7 +120,6 @@ function dibujarCampo() {
   ctx.setLineDash([]);
   ctx.strokeRect(0, 0, canvas.width, canvas.height);
 
-  // Línea central punteada
   ctx.beginPath();
   ctx.setLineDash([10, 10]);
   ctx.moveTo(canvas.width / 2, 0);
@@ -110,12 +145,10 @@ function moverPelota() {
   pelotaX += velPelotaX;
   pelotaY += velPelotaY;
 
-  // Rebote arriba/abajo
   if (pelotaY - pelotaRadio < 0 || pelotaY + pelotaRadio > canvas.height) {
     velPelotaY *= -1;
   }
 
-  // Colisión con paletas
   if (
     pelotaX - pelotaRadio < 30 &&
     pelotaY > jugador1Y &&
@@ -131,12 +164,10 @@ function moverPelota() {
     velPelotaX *= -1;
   }
 
-  // Gol jugador 2
   if (pelotaX - pelotaRadio < 0) {
     score2++;
     reiniciarPelota();
   }
-  // Gol jugador 1
   if (pelotaX + pelotaRadio > canvas.width) {
     score1++;
     reiniciarPelota();
