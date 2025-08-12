@@ -1,220 +1,393 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Fútbol Pong Retro</title>
 <style>
-  body {
-    background: black;
-    color: white;
-    font-family: monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 0;
-    overflow: hidden;
+  :root{
+    --hud: 70px;            /* altura aproximada del encabezado (marcador/tiempo) */
+    --ctrl-size: 64px;      /* tamaño de los botones táctiles */
+    --ctrl-gap: 10px;
   }
-  canvas {
-    background: black;
-    display: block;
-    margin-top: 10px;
-    border: 4px solid white;
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:#000;
+    color:#fff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
   }
-  #marcador {
-    font-size: 24px;
-    margin-top: 10px;
+
+  /* HUD */
+  .hud{
+    height:var(--hud);
+    width:100%;
+    max-width:1200px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    padding-top:6px;
   }
-  #tiempo {
-    font-size: 18px;
-    margin-top: 5px;
+  #marcador{ font-size:28px; letter-spacing:8px; }
+  #tiempo{ font-size:18px; opacity:.95; }
+
+  /* Área de juego */
+  .stage{
+    position:relative;
+    width:100%;
+    max-width:1200px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:6px 8px 12px;
   }
-  .controles {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    padding: 5px;
-    position: fixed;
-    bottom: 0;
+  canvas{
+    background:#000;
+    border:4px solid #fff;
+    display:block;
+    width:100%;   /* responsive; el JS ajusta tamaño real (pixels) */
+    height:auto;
+    border-radius:8px;
   }
-  .lado {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+
+  /* Controles táctiles flotantes */
+  .ctrl{
+    position:absolute;
+    display:flex;
+    flex-direction:column;
+    gap:var(--ctrl-gap);
+    top:50%;
+    transform:translateY(-50%);
+    z-index:5;
+    touch-action:none;
   }
-  button {
-    background: white;
-    color: black;
-    border: none;
-    padding: 20px;
-    font-size: 18px;
-    border-radius: 8px;
-    opacity: 0.7;
+  .ctrl.left{ left:10px; }
+  .ctrl.right{ right:10px; }
+
+  .btn{
+    width:var(--ctrl-size);
+    height:var(--ctrl-size);
+    border-radius:14px;
+    background:rgba(255,255,255,.18);
+    border:1px solid rgba(255,255,255,.25);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:28px;
+    color:#fff;
+    user-select:none;
+  }
+  .btn:active{ background:rgba(255,255,255,.28); }
+
+  /* Overlay para pedir rotación */
+  #rotateOverlay{
+    position:fixed;
+    inset:0;
+    background:#000;
+    color:#fff;
+    display:none;        /* se muestra con JS si está en vertical */
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:24px;
+    z-index:999;
+  }
+  #rotateOverlay .box{
+    max-width:520px;
+    border:2px dashed #666;
+    border-radius:14px;
+    padding:24px 18px;
+  }
+  #rotateOverlay h2{ margin:0 0 8px; font-size:22px;}
+  #rotateOverlay p{ margin:0; color:#bbb; }
+  #rotateIcon{
+    font-size:56px;
+    margin-bottom:12px;
+    display:block;
+  }
+
+  /* Ayuda extra: en orientación portrait ocultamos visualmente el juego con CSS por si el navegador demora el JS */
+  @media (orientation:portrait){
+    .stage, .hud{ filter:blur(3px); opacity:.35; }
   }
 </style>
 </head>
 <body>
 
-<div id="marcador">0 - 0</div>
-<div id="tiempo">Tiempo: 60</div>
-<canvas id="gameCanvas" width="800" height="400"></canvas>
-
-<div class="controles">
-  <div class="lado">
-    <button id="p1up">▲</button>
-    <button id="p1down">▼</button>
-  </div>
-  <div class="lado">
-    <button id="p2up">▲</button>
-    <button id="p2down">▼</button>
+<!-- Overlay de rotación -->
+<div id="rotateOverlay">
+  <div class="box">
+    <span id="rotateIcon">🔄📱</span>
+    <h2>Gira tu dispositivo</h2>
+    <p>Este juego se juega en <strong>horizontal</strong>. Gira la pantalla para comenzar.</p>
   </div>
 </div>
 
+<!-- HUD -->
+<div class="hud">
+  <div id="marcador">0&nbsp;-&nbsp;0</div>
+  <div id="tiempo">Tiempo: 60</div>
+</div>
+
+<!-- Área de juego -->
+<div class="stage" id="stage">
+  <!-- Controles táctiles -->
+  <div class="ctrl left" aria-hidden="true">
+    <div class="btn" id="p1up">▲</div>
+    <div class="btn" id="p1down">▼</div>
+  </div>
+  <div class="ctrl right" aria-hidden="true">
+    <div class="btn" id="p2up">▲</div>
+    <div class="btn" id="p2down">▼</div>
+  </div>
+
+  <!-- Lienzo -->
+  <canvas id="gameCanvas"></canvas>
+</div>
+
 <script>
+/* ---------- Utilidades de layout / orientación ---------- */
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const marcadorEl = document.getElementById("marcador");
+const tiempoEl = document.getElementById("tiempo");
+const rotateOverlay = document.getElementById("rotateOverlay");
+const stage = document.getElementById("stage");
 
-let jugador1Y = canvas.height / 2 - 40;
-let jugador2Y = canvas.height / 2 - 40;
-const paletaAltura = 80, paletaAncho = 10;
-const velocidadPaleta = 12;
+let rafId = null;
+let intervaloTiempo = null;
+let pausadoPorOrientacion = false;
+
+function esLandscape(){ return window.innerWidth > window.innerHeight; }
+
+function ajustarCanvas() {
+  // Mantener relación 2:1 (ancho:alto) como 800x400, y respetar la altura disponible
+  const hudH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hud')) || 70;
+  const margen = 20;
+  const disponibleW = stage.clientWidth - 16;
+  const disponibleH = window.innerHeight - hudH - margen;
+
+  // Primero calculamos alto según ancho con ratio 2:1
+  let alto = Math.min(disponibleH, Math.floor(disponibleW / 2));
+  let ancho = alto * 2;
+
+  // Ajuste final a límites
+  if (ancho > disponibleW) { ancho = disponibleW; alto = Math.floor(ancho / 2); }
+
+  // Asignar tamaño "real" del canvas
+  canvas.width = Math.max(400, Math.floor(ancho));
+  canvas.height = Math.max(200, Math.floor(alto));
+}
+
+function mostrarOverlaySiNecesario(){
+  if (!esLandscape()){
+    rotateOverlay.style.display = "flex";
+    pausarJuego(true);
+  } else {
+    rotateOverlay.style.display = "none";
+    pausarJuego(false);
+  }
+}
+
+window.addEventListener("resize", ()=>{ ajustarCanvas(); mostrarOverlaySiNecesario(); });
+window.addEventListener("orientationchange", ()=>{ setTimeout(()=>{ ajustarCanvas(); mostrarOverlaySiNecesario(); }, 50); });
+
+/* ---------- Juego ---------- */
+let jugador1Y, jugador2Y;
+const paletaAlturaBase = 0.2;  // 20% del alto del canvas (se recalcula)
+const paletaAncho = 10;
+let paletaAltura = 80;
+let velocidadPaleta = 12;
 
 let keysPressed = {};
 
-let pelotaX = canvas.width / 2, pelotaY = canvas.height / 2;
-let pelotaRadio = 5;
-let velPelotaX = 4, velPelotaY = 3;
+let pelotaX, pelotaY;
+let pelotaRadio = 6;
+let velPelotaX = 5, velPelotaY = 3;
 
 let score1 = 0, score2 = 0;
-let tiempo = 60;
-let intervaloTiempo;
+let tiempo = 60; // segundos
 
-// Botones táctiles
-const p1up = document.getElementById("p1up");
-const p1down = document.getElementById("p1down");
-const p2up = document.getElementById("p2up");
-const p2down = document.getElementById("p2down");
-
-function setButtonHold(btn, key) {
-  btn.addEventListener("touchstart", e => { e.preventDefault(); keysPressed[key] = true; });
-  btn.addEventListener("touchend", e => { e.preventDefault(); keysPressed[key] = false; });
+function resetPosiciones(){
+  jugador1Y = canvas.height/2 - paletaAltura/2;
+  jugador2Y = canvas.height/2 - paletaAltura/2;
+  pelotaX = canvas.width/2;
+  pelotaY = canvas.height/2;
+  velPelotaX = (Math.random() > 0.5 ? 1 : -1) * 5;
+  velPelotaY = (Math.random() > 0.5 ? 1 : -1) * 3;
 }
 
-setButtonHold(p1up, "w");
-setButtonHold(p1down, "s");
-setButtonHold(p2up, "ArrowUp");
-setButtonHold(p2down, "ArrowDown");
+function recalcularMedidas(){
+  paletaAltura = Math.max(50, Math.floor(canvas.height * paletaAlturaBase));
+  velocidadPaleta = Math.max(8, Math.floor(canvas.height * 0.06)); // 6% del alto por frame
+  pelotaRadio = Math.max(5, Math.floor(canvas.height * 0.015));
+}
 
-function moverPaletas() {
-  if (keysPressed["w"]) jugador1Y -= velocidadPaleta;
-  if (keysPressed["s"]) jugador1Y += velocidadPaleta;
-  if (keysPressed["ArrowUp"]) jugador2Y -= velocidadPaleta;
-  if (keysPressed["ArrowDown"]) jugador2Y += velocidadPaleta;
+function moverPaletas(){
+  if (keysPressed["p1_up"]) jugador1Y -= velocidadPaleta;
+  if (keysPressed["p1_down"]) jugador1Y += velocidadPaleta;
+  if (keysPressed["p2_up"]) jugador2Y -= velocidadPaleta;
+  if (keysPressed["p2_down"]) jugador2Y += velocidadPaleta;
 
+  // Limites
   jugador1Y = Math.max(0, Math.min(canvas.height - paletaAltura, jugador1Y));
   jugador2Y = Math.max(0, Math.min(canvas.height - paletaAltura, jugador2Y));
 }
 
-function dibujarCampo() {
-  ctx.strokeStyle = "white";
+function dibujarCampo(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = "#fff";
   ctx.setLineDash([]);
-  ctx.strokeRect(0, 0, canvas.width, canvas.height);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0,0,canvas.width,canvas.height);
 
+  // Línea central punteada
   ctx.beginPath();
-  ctx.setLineDash([10, 10]);
-  ctx.moveTo(canvas.width / 2, 0);
-  ctx.lineTo(canvas.width / 2, canvas.height);
+  ctx.setLineDash([12, 12]);
+  ctx.moveTo(canvas.width/2, 0);
+  ctx.lineTo(canvas.width/2, canvas.height);
   ctx.stroke();
 }
 
-function dibujarPaletas() {
-  ctx.fillStyle = "white";
-  ctx.fillRect(20, jugador1Y, paletaAncho, paletaAltura);
-  ctx.fillRect(canvas.width - 30, jugador2Y, paletaAncho, paletaAltura);
+function dibujarPaletas(){
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(18, jugador1Y, paletaAncho, paletaAltura);
+  ctx.fillRect(canvas.width - 18 - paletaAncho, jugador2Y, paletaAncho, paletaAltura);
 }
 
-function dibujarPelota() {
+function dibujarPelota(){
   ctx.beginPath();
-  ctx.arc(pelotaX, pelotaY, pelotaRadio, 0, Math.PI * 2);
-  ctx.fillStyle = "white";
+  ctx.arc(pelotaX, pelotaY, pelotaRadio, 0, Math.PI*2);
+  ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.closePath();
 }
 
-function moverPelota() {
+function moverPelota(){
   pelotaX += velPelotaX;
   pelotaY += velPelotaY;
 
+  // Rebote arriba/abajo
   if (pelotaY - pelotaRadio < 0 || pelotaY + pelotaRadio > canvas.height) {
     velPelotaY *= -1;
   }
 
-  if (
-    pelotaX - pelotaRadio < 30 &&
-    pelotaY > jugador1Y &&
-    pelotaY < jugador1Y + paletaAltura
-  ) {
-    velPelotaX *= -1;
-  }
-  if (
-    pelotaX + pelotaRadio > canvas.width - 30 &&
-    pelotaY > jugador2Y &&
-    pelotaY < jugador2Y + paletaAltura
-  ) {
-    velPelotaX *= -1;
+  // Colisión con paleta izquierda
+  if (pelotaX - pelotaRadio < 18 + paletaAncho &&
+      pelotaY > jugador1Y && pelotaY < jugador1Y + paletaAltura) {
+    velPelotaX = Math.abs(velPelotaX) + 0.2; // pequeño incremento de dificultad
+    // Efecto según punto de impacto
+    const impacto = (pelotaY - (jugador1Y + paletaAltura/2)) / (paletaAltura/2);
+    velPelotaY = impacto * 5;
   }
 
-  if (pelotaX - pelotaRadio < 0) {
-    score2++;
-    reiniciarPelota();
+  // Colisión con paleta derecha
+  if (pelotaX + pelotaRadio > canvas.width - 18 - paletaAncho &&
+      pelotaY > jugador2Y && pelotaY < jugador2Y + paletaAltura) {
+    velPelotaX = -Math.abs(velPelotaX) - 0.2;
+    const impacto = (pelotaY - (jugador2Y + paletaAltura/2)) / (paletaAltura/2);
+    velPelotaY = impacto * 5;
   }
-  if (pelotaX + pelotaRadio > canvas.width) {
-    score1++;
-    reiniciarPelota();
+
+  // Gol
+  if (pelotaX + pelotaRadio < 0){
+    score2++; actualizarMarcador(); resetPosiciones();
+  }
+  if (pelotaX - pelotaRadio > canvas.width){
+    score1++; actualizarMarcador(); resetPosiciones();
   }
 }
 
-function reiniciarPelota() {
-  pelotaX = canvas.width / 2;
-  pelotaY = canvas.height / 2;
-  velPelotaX *= -1;
-  velPelotaY = 3 * (Math.random() > 0.5 ? 1 : -1);
+function actualizarMarcador(){
+  marcadorEl.textContent = `${score1} - ${score2}`;
 }
 
-function dibujarMarcador() {
-  document.getElementById("marcador").textContent = `${score1} - ${score2}`;
+function actualizarTiempo(){
+  tiempoEl.textContent = `Tiempo: ${tiempo}`;
 }
 
-function dibujarTiempo() {
-  document.getElementById("tiempo").textContent = `Tiempo: ${tiempo}`;
-}
-
-function iniciarTiempo() {
-  intervaloTiempo = setInterval(() => {
+function iniciarTiempo(){
+  if (intervaloTiempo) clearInterval(intervaloTiempo);
+  intervaloTiempo = setInterval(()=>{
+    if (pausadoPorOrientacion) return;
     tiempo--;
-    dibujarTiempo();
-    if (tiempo <= 0) {
+    actualizarTiempo();
+    if (tiempo <= 0){
       clearInterval(intervaloTiempo);
-      alert(`Fin del juego! Marcador final: ${score1} - ${score2}`);
-      document.location.reload();
+      pausarJuego(true);
+      setTimeout(()=>alert(`¡Fin del juego! Marcador final: ${score1} - ${score2}`), 10);
+      // Reinicio simple
+      tiempo = 60; score1 = 0; score2 = 0; actualizarMarcador(); actualizarTiempo();
+      resetPosiciones();
+      pausarJuego(false);
+      iniciarTiempo();
     }
   }, 1000);
 }
 
-function dibujar() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function loop(){
   moverPaletas();
   dibujarCampo();
   dibujarPaletas();
   dibujarPelota();
   moverPelota();
-  dibujarMarcador();
-  requestAnimationFrame(dibujar);
+  rafId = requestAnimationFrame(loop);
 }
 
-iniciarTiempo();
-dibujar();
-</script>
+function pausarJuego(pausa){
+  if (pausa){
+    pausadoPorOrientacion = true;
+    if (rafId) cancelAnimationFrame(rafId), rafId = null;
+  } else {
+    if (!rafId) { pausadoPorOrientacion = false; rafId = requestAnimationFrame(loop); }
+  }
+}
 
+/* ---------- Controles táctiles ---------- */
+const p1up = document.getElementById("p1up");
+const p1down = document.getElementById("p1down");
+const p2up = document.getElementById("p2up");
+const p2down = document.getElementById("p2down");
+
+// Soporte pointer (toca y mantén)
+function press(key){ keysPressed[key] = true; }
+function release(key){ keysPressed[key] = false; }
+
+function bindHold(el, key){
+  const start = (e)=>{ e.preventDefault(); press(key); };
+  const end = (e)=>{ e.preventDefault(); release(key); };
+  el.addEventListener("pointerdown", start);
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+  el.addEventListener("pointerleave", end);
+  // evitar doble-tap zoom
+  el.addEventListener("touchstart", e=>e.preventDefault(), {passive:false});
+}
+bindHold(p1up, "p1_up");
+bindHold(p1down, "p1_down");
+bindHold(p2up, "p2_up");
+bindHold(p2down, "p2_down");
+
+/* ---------- Inicio ---------- */
+function start(){
+  ajustarCanvas();
+  mostrarOverlaySiNecesario();
+  recalcularMedidas();
+  resetPosiciones();
+  actualizarMarcador();
+  actualizarTiempo();
+  iniciarTiempo();
+  if (esLandscape()) rafId = requestAnimationFrame(loop);
+}
+start();
+
+</script>
 </body>
 </html>
