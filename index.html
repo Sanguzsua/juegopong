@@ -1,69 +1,89 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Juego en pantalla completa</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #000;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Juego Horizontal</title>
+<style>
+    body {
+        margin: 0;
+        background: black;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 
-        #orientation-message {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            z-index: 9999;
-            font-size: 1.5em;
-            padding: 20px;
-        }
+    #juegoCanvas {
+        background: #222;
+        display: none; /* oculto por defecto si está en vertical */
+    }
 
-        iframe {
-            border: none;
-            width: 100vw;
-            height: 100vh;
-        }
-    </style>
+    #mensaje {
+        color: white;
+        font-size: 2em;
+        text-align: center;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: Arial, sans-serif;
+        display: none;
+    }
+</style>
 </head>
 <body>
 
-    <!-- Mensaje para girar el celular -->
-    <div id="orientation-message">
-        🔄 Por favor, gira tu dispositivo a <strong>modo horizontal</strong> para jugar.
-    </div>
+<canvas id="juegoCanvas"></canvas>
+<div id="mensaje">📱 Gira tu celular para jugar</div>
 
-    <!-- Juego -->
-    <iframe id="game" src="https://www.retrogames.cc/embed/43116-sonic-the-hedgehog-japan.html" allowfullscreen></iframe>
+<script>
+const canvas = document.getElementById("juegoCanvas");
+const ctx = canvas.getContext("2d");
+const mensaje = document.getElementById("mensaje");
 
-    <script>
-        function checkOrientation() {
-            const message = document.getElementById('orientation-message');
-            if (window.innerWidth < window.innerHeight) {
-                // Modo vertical
-                message.style.display = 'flex';
-            } else {
-                // Modo horizontal
-                message.style.display = 'none';
-            }
-        }
+// Ajustar tamaño del canvas
+function ajustarCanvas() {
+    if (window.innerWidth > window.innerHeight) {
+        // Horizontal
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.style.display = "block";
+        mensaje.style.display = "none";
+    } else {
+        // Vertical
+        canvas.style.display = "none";
+        mensaje.style.display = "block";
+    }
+}
 
-        // Revisar orientación al cargar y cuando se gira
-        window.addEventListener('load', checkOrientation);
-        window.addEventListener('resize', checkOrientation);
-    </script>
+// Evento al cambiar orientación o tamaño
+window.addEventListener("resize", ajustarCanvas);
+window.addEventListener("orientationchange", ajustarCanvas);
+ajustarCanvas();
+
+// --- Ejemplo de juego simple (bola que se mueve con el dedo) ---
+let bola = { x: 100, y: 100, radio: 20, color: "red" };
+
+canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    let toque = e.touches[0];
+    let rect = canvas.getBoundingClientRect();
+    bola.x = toque.clientX - rect.left;
+    bola.y = toque.clientY - rect.top;
+}, { passive: false });
+
+function dibujarJuego() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.arc(bola.x, bola.y, bola.radio, 0, Math.PI * 2);
+    ctx.fillStyle = bola.color;
+    ctx.fill();
+    requestAnimationFrame(dibujarJuego);
+}
+
+dibujarJuego();
+</script>
 
 </body>
 </html>
