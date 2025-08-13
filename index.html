@@ -1,144 +1,165 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pong Game</title>
-    <style>
-        body {
-            margin: 0;
-            background: black;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        canvas {
-            border: 2px solid white;
-        }
-        #controls {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            position: fixed;
-            bottom: 10px;
-            padding: 0 20px;
-        }
-        button {
-            background: white;
-            border: none;
-            padding: 15px;
-            font-size: 18px;
-            border-radius: 8px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pong Touch</title>
+<style>
+    body {
+        margin: 0;
+        background: black;
+        overflow: hidden;
+        touch-action: none;
+    }
+    canvas {
+        display: block;
+        margin: auto;
+        background: #000;
+    }
+    #marcador {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 24px;
+        font-family: Arial, sans-serif;
+    }
+    #gameover {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: yellow;
+        font-size: 30px;
+        font-family: Arial, sans-serif;
+        display: none;
+    }
+</style>
 </head>
 <body>
-    <canvas id="pong" width="800" height="400"></canvas>
+<div id="marcador">0 - 0</div>
+<div id="gameover"></div>
+<canvas id="pong"></canvas>
 
-    <div id="controls">
-        <div>
-            <button id="upLeft">⬆ Izquierda</button>
-            <button id="downLeft">⬇ Izquierda</button>
-        </div>
-        <div>
-            <button id="upRight">⬆ Derecha</button>
-            <button id="downRight">⬇ Derecha</button>
-        </div>
-    </div>
+<script>
+const canvas = document.getElementById("pong");
+const ctx = canvas.getContext("2d");
 
-    <script>
-        const canvas = document.getElementById("pong");
-        const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-        const paddleWidth = 10, paddleHeight = 80;
-        const ballSize = 10;
+let paddleHeight = 100;
+let paddleWidth = 15;
+let leftPaddleY = (canvas.height - paddleHeight) / 2;
+let rightPaddleY = (canvas.height - paddleHeight) / 2;
+let ballSize = 15;
+let ballX = canvas.width / 2;
+let ballY = canvas.height / 2;
+let ballSpeedX = 5;
+let ballSpeedY = 5;
 
-        let leftPaddle = { x: 0, y: canvas.height/2 - paddleHeight/2 };
-        let rightPaddle = { x: canvas.width - paddleWidth, y: canvas.height/2 - paddleHeight/2 };
-        let ball = { x: canvas.width/2, y: canvas.height/2, speedX: 4, speedY: 4 };
+let scoreLeft = 0;
+let scoreRight = 0;
+const maxScore = 5;
 
-        function drawPaddle(x, y) {
-            ctx.fillStyle = "white";
-            ctx.fillRect(x, y, paddleWidth, paddleHeight);
+function drawRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+}
+
+function drawCircle(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function draw() {
+    drawRect(0, 0, canvas.width, canvas.height, "black");
+    drawRect(10, leftPaddleY, paddleWidth, paddleHeight, "white");
+    drawRect(canvas.width - paddleWidth - 10, rightPaddleY, paddleWidth, paddleHeight, "white");
+    drawCircle(ballX, ballY, ballSize, "white");
+}
+
+function moveBall() {
+    ballX += ballSpeedX;
+    ballY += ballSpeedY;
+
+    // Rebote arriba y abajo
+    if (ballY - ballSize < 0 || ballY + ballSize > canvas.height) {
+        ballSpeedY = -ballSpeedY;
+    }
+
+    // Colisión con la pala izquierda
+    if (ballX - ballSize < 25 && ballY > leftPaddleY && ballY < leftPaddleY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+    }
+
+    // Colisión con la pala derecha
+    if (ballX + ballSize > canvas.width - 25 && ballY > rightPaddleY && ballY < rightPaddleY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+    }
+
+    // Punto para derecha
+    if (ballX - ballSize < 0) {
+        scoreRight++;
+        resetBall();
+    }
+
+    // Punto para izquierda
+    if (ballX + ballSize > canvas.width) {
+        scoreLeft++;
+        resetBall();
+    }
+
+    document.getElementById("marcador").textContent = `${scoreLeft} - ${scoreRight}`;
+
+    if (scoreLeft >= maxScore || scoreRight >= maxScore) {
+        endGame();
+    }
+}
+
+function resetBall() {
+    ballX = canvas.width / 2;
+    ballY = canvas.height / 2;
+    ballSpeedX = -ballSpeedX;
+    ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+}
+
+function endGame() {
+    document.getElementById("gameover").style.display = "block";
+    document.getElementById("gameover").textContent = 
+        scoreLeft >= maxScore ? "Ganó Jugador Izquierdo" : "Ganó Jugador Derecho";
+    ballSpeedX = 0;
+    ballSpeedY = 0;
+}
+
+function update() {
+    moveBall();
+}
+
+function game() {
+    update();
+    draw();
+}
+
+setInterval(game, 1000 / 60);
+
+// Control táctil para ambos lados
+canvas.addEventListener("touchmove", function(e) {
+    for (let touch of e.touches) {
+        let touchX = touch.clientX;
+        let touchY = touch.clientY;
+
+        if (touchX < canvas.width / 2) {
+            leftPaddleY = touchY - paddleHeight / 2;
+        } else {
+            rightPaddleY = touchY - paddleHeight / 2;
         }
-
-        function drawBall() {
-            ctx.fillStyle = "white";
-            ctx.fillRect(ball.x, ball.y, ballSize, ballSize);
-        }
-
-        function moveBall() {
-            ball.x += ball.speedX;
-            ball.y += ball.speedY;
-
-            // Rebote arriba y abajo
-            if (ball.y <= 0 || ball.y + ballSize >= canvas.height) {
-                ball.speedY = -ball.speedY;
-            }
-
-            // Rebote en la paleta izquierda
-            if (ball.x <= leftPaddle.x + paddleWidth &&
-                ball.y + ballSize >= leftPaddle.y &&
-                ball.y <= leftPaddle.y + paddleHeight) {
-                ball.speedX = -ball.speedX;
-            }
-
-            // Rebote en la paleta derecha
-            if (ball.x + ballSize >= rightPaddle.x &&
-                ball.y + ballSize >= rightPaddle.y &&
-                ball.y <= rightPaddle.y + paddleHeight) {
-                ball.speedX = -ball.speedX;
-            }
-
-            // Punto para derecha
-            if (ball.x < 0) {
-                resetBall();
-            }
-
-            // Punto para izquierda
-            if (ball.x > canvas.width) {
-                resetBall();
-            }
-        }
-
-        function resetBall() {
-            ball.x = canvas.width / 2;
-            ball.y = canvas.height / 2;
-            ball.speedX = -ball.speedX;
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawPaddle(leftPaddle.x, leftPaddle.y);
-            drawPaddle(rightPaddle.x, rightPaddle.y);
-            drawBall();
-            moveBall();
-        }
-
-        setInterval(draw, 1000/60);
-
-        // Controles de teclado
-        document.addEventListener("keydown", (e) => {
-            if (e.key === "w") leftPaddle.y -= 10;
-            if (e.key === "s") leftPaddle.y += 10;
-            if (e.key === "ArrowUp") rightPaddle.y -= 10;
-            if (e.key === "ArrowDown") rightPaddle.y += 10;
-        });
-
-        // Controles táctiles
-        document.getElementById("upLeft").addEventListener("click", () => {
-            leftPaddle.y -= 10;
-        });
-        document.getElementById("downLeft").addEventListener("click", () => {
-            leftPaddle.y += 10;
-        });
-        document.getElementById("upRight").addEventListener("click", () => {
-            rightPaddle.y -= 10;
-        });
-        document.getElementById("downRight").addEventListener("click", () => {
-            rightPaddle.y += 10;
-        });
-    </script>
+    }
+});
+</script>
 </body>
 </html>
