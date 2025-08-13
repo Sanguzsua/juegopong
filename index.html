@@ -31,54 +31,16 @@
             font-size: 2em;
             font-weight: bold;
         }
-        #touchControls {
-            display: none; /* Inicialmente oculto para computadoras */
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-        .touch-area {
-            position: absolute;
-            width: 50%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-        }
-        .left-paddle-touch { left: 0; }
-        .right-paddle-touch { right: 0; }
-        .touch-button {
-            flex-grow: 1;
-            /* background-color: rgba(255, 255, 255, 0.1); */
-            /* border: 1px solid rgba(255, 255, 255, 0.3); */
-        }
     </style>
 </head>
 <body>
     <div id="score">0 - 0</div>
     <canvas id="gameCanvas"></canvas>
-    <div id="touchControls">
-        <div class="touch-area left-paddle-touch">
-            <div class="touch-button" id="leftUp"></div>
-            <div class="touch-button" id="leftDown"></div>
-        </div>
-        <div class="touch-area right-paddle-touch">
-            <div class="touch-button" id="rightUp"></div>
-            <div class="touch-button" id="rightDown"></div>
-        </div>
-    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
-
-        let isMobile = /Mobi|Android/i.test(navigator.userAgent);
-        if (isMobile) {
-            document.getElementById('touchControls').style.display = 'flex';
-        }
 
         const paddleWidth = 10;
         const paddleHeight = 75;
@@ -109,6 +71,7 @@
         };
 
         let keys = {};
+        let touchState = { left: null, right: null };
 
         function setCanvasSize() {
             let width, height;
@@ -135,10 +98,10 @@
             ball.y = canvas.height / 2;
             ball.speed = 5;
             
-            let angle = Math.random() * (Math.PI / 2) - (Math.PI / 4); // Angulo inicial aleatorio
+            let angle = Math.random() * (Math.PI / 2) - (Math.PI / 4);
             ball.dx = Math.cos(angle) * ball.speed;
             ball.dy = Math.sin(angle) * ball.speed;
-            if (Math.random() < 0.5) ball.dx *= -1; // Dirección inicial aleatoria
+            if (Math.random() < 0.5) ball.dx *= -1;
 
             paddle1.x = 20;
             paddle1.y = canvas.height / 2 - paddleHeight / 2;
@@ -156,14 +119,11 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'white';
 
-            // Dibujar paletas
             ctx.fillRect(paddle1.x, paddle1.y, paddleWidth, paddleHeight);
             ctx.fillRect(paddle2.x, paddle2.y, paddleWidth, paddleHeight);
 
-            // Dibujar pelota
             ctx.fillRect(ball.x, ball.y, ballSize, ballSize);
 
-            // Línea central
             ctx.beginPath();
             ctx.setLineDash([5, 15]);
             ctx.moveTo(canvas.width / 2, 0);
@@ -181,11 +141,17 @@
             if (keys['ArrowDown'] && paddle2.y + paddleHeight < canvas.height) { paddle2.y += paddle2.speed; }
 
             // Mover paletas con toque
-            if (isMobile) {
-                if (paddle1.dy > 0 && paddle1.y + paddleHeight < canvas.height) { paddle1.y += paddle1.speed; }
-                if (paddle1.dy < 0 && paddle1.y > 0) { paddle1.y -= paddle1.speed; }
-                if (paddle2.dy > 0 && paddle2.y + paddleHeight < canvas.height) { paddle2.y += paddle2.speed; }
-                if (paddle2.dy < 0 && paddle2.y > 0) { paddle2.y -= paddle2.speed; }
+            if (touchState.left !== null) {
+                let newY = touchState.left - paddleHeight / 2;
+                if (newY > 0 && newY + paddleHeight < canvas.height) {
+                    paddle1.y = newY;
+                }
+            }
+            if (touchState.right !== null) {
+                let newY = touchState.right - paddleHeight / 2;
+                if (newY > 0 && newY + paddleHeight < canvas.height) {
+                    paddle2.y = newY;
+                }
             }
             
             // Movimiento de la pelota
@@ -204,7 +170,7 @@
                 ball.y + ballSize > paddle1.y &&
                 ball.y < paddle1.y + paddleHeight) {
                 ball.dx *= -1;
-                ball.speed *= 1.05; // Aumenta la velocidad
+                ball.speed *= 1.05;
                 ball.dx = ball.dx > 0 ? ball.speed : -ball.speed;
                 let paddleCenter = paddle1.y + paddleHeight / 2;
                 let ballCenter = ball.y + ballSize / 2;
@@ -218,7 +184,7 @@
                 ball.y + ballSize > paddle2.y &&
                 ball.y < paddle2.y + paddleHeight) {
                 ball.dx *= -1;
-                ball.speed *= 1.05; // Aumenta la velocidad
+                ball.speed *= 1.05;
                 ball.dx = ball.dx < 0 ? -ball.speed : ball.speed;
                 let paddleCenter = paddle2.y + paddleHeight / 2;
                 let ballCenter = ball.y + ballSize / 2;
@@ -252,17 +218,52 @@
         });
 
         // Eventos táctiles para celulares
-        if (isMobile) {
-            document.getElementById('leftUp').addEventListener('touchstart', () => { paddle1.dy = -1; });
-            document.getElementById('leftUp').addEventListener('touchend', () => { paddle1.dy = 0; });
-            document.getElementById('leftDown').addEventListener('touchstart', () => { paddle1.dy = 1; });
-            document.getElementById('leftDown').addEventListener('touchend', () => { paddle1.dy = 0; });
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                const touchX = touch.clientX;
+                const touchY = touch.clientY;
+                const canvasRect = canvas.getBoundingClientRect();
 
-            document.getElementById('rightUp').addEventListener('touchstart', () => { paddle2.dy = -1; });
-            document.getElementById('rightUp').addEventListener('touchend', () => { paddle2.dy = 0; });
-            document.getElementById('rightDown').addEventListener('touchstart', () => { paddle2.dy = 1; });
-            document.getElementById('rightDown').addEventListener('touchend', () => { paddle2.dy = 0; });
-        }
+                // Detectar qué paleta se está tocando
+                if (touchX < canvasRect.left + canvas.width / 2) {
+                    touchState.left = touchY - canvasRect.top;
+                } else {
+                    touchState.right = touchY - canvasRect.top;
+                }
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                const touchX = touch.clientX;
+                const touchY = touch.clientY;
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                // Actualizar la posición de la paleta arrastrada
+                if (touchX < canvasRect.left + canvas.width / 2) {
+                    touchState.left = touchY - canvasRect.top;
+                } else {
+                    touchState.right = touchY - canvasRect.top;
+                }
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                const touchX = touch.clientX;
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                // Limpiar el estado de la paleta cuando se levanta el dedo
+                if (touchX < canvasRect.left + canvas.width / 2) {
+                    touchState.left = null;
+                } else {
+                    touchState.right = null;
+                }
+            }
+        });
 
         // Manejar el tamaño de la ventana
         window.addEventListener('resize', setCanvasSize);
