@@ -1,270 +1,173 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Pong Responsivo</title>
-  <style>
-    :root{
-      --bg1:#0e0f12; --bg2:#1a1f2b; --fg:#ffffff; --accent:#7dd3fc;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pong Móvil</title>
+<style>
+    body {
+        background-color: black;
+        margin: 0;
+        overflow: hidden;
+        touch-action: none;
     }
-    html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 70% 20%,var(--bg2),var(--bg1));font-family:system-ui,Segoe UI,Roboto,Arial;color:var(--fg);overflow:hidden}
-    .stage{position:fixed;inset:0;display:grid;place-items:center}
-    canvas{display:block;width:100vw;height:100vh}
-    .net{position:fixed;top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%);background:repeating-linear-gradient(to bottom,rgba(255,255,255,0.18),rgba(255,255,255,0.18) 12px,transparent 12px,transparent 24px);pointer-events:none}
-    .hud{position:fixed;top:env(safe-area-inset-top,12px);left:0;right:0;display:flex;justify-content:center;align-items:center;gap:12px;pointer-events:none}
-    .score{font-weight:700;font-size:clamp(18px,4vw,36px);text-shadow:0 3px 12px rgba(0,0,0,.6)}
-    .hint{position:fixed;bottom:env(safe-area-inset-bottom,12px);left:50%;transform:translateX(-50%);font-size:clamp(12px,2.8vw,16px);opacity:.85;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.06);backdrop-filter:blur(4px);pointer-events:none}
-    .rotate-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:20;padding:24px}
-    .rotate-card{max-width:520px;border-radius:16px;padding:24px;background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));border:1px solid rgba(255,255,255,0.06);text-align:center}
-    @media (orientation:portrait){.rotate-overlay{display:flex}}
-    /* overlay ganador */
-    .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:30}
-    .card{background:rgba(255,255,255,0.06);padding:22px;border-radius:12px;text-align:center;border:1px solid rgba(255,255,255,0.08)}
-    button{margin-top:12px;padding:8px 14px;border-radius:8px;border:none;background:var(--accent);color:#012;cursor:pointer;font-weight:700}
-  </style>
+    canvas {
+        display: block;
+        margin: auto;
+        background: black;
+    }
+    #btnReiniciar {
+        display: none;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 10px 15px;
+        background: white;
+        border: none;
+        font-size: 16px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+</style>
 </head>
 <body>
-  <div class="stage"><canvas id="game"></canvas></div>
-  <div class="net" aria-hidden="true"></div>
+<canvas id="pong"></canvas>
+<button id="btnReiniciar">Reiniciar</button>
 
-  <div class="hud">
-    <div class="score" id="scoreLeft">0</div>
-    <div class="score">—</div>
-    <div class="score" id="scoreRight">0</div>
-  </div>
-  <div class="hint">PC: W/S · Flechas ↑/↓ · Móvil: toca y desliza en cada mitad</div>
+<script>
+const canvas = document.getElementById("pong");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-  <div class="rotate-overlay" id="rotate">
-    <div class="rotate-card">
-      <h2>Gira tu celular</h2>
-      <p>Pon el dispositivo en horizontal para jugar mejor</p>
-    </div>
-  </div>
+let paddleHeight = 100, paddleWidth = 20;
+let player1 = { x: 10, y: canvas.height / 2 - paddleHeight / 2, score: 0 };
+let player2 = { x: canvas.width - paddleWidth - 10, y: canvas.height / 2 - paddleHeight / 2, score: 0 };
+let ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 10, speedX: 5, speedY: 5 };
+let gameRunning = false;
+let gameOver = false;
 
-  <div class="overlay" id="overlay">
-    <div class="card">
-      <div id="overlayText">Ganó ...</div>
-      <button id="restart">Reiniciar</button>
-    </div>
-  </div>
+function drawRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+}
 
-  <script>
-  (function(){
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    const scoreLeftEl = document.getElementById('scoreLeft');
-    const scoreRightEl = document.getElementById('scoreRight');
-    const rotateOverlay = document.getElementById('rotate');
-    const overlay = document.getElementById('overlay');
-    const overlayText = document.getElementById('overlayText');
-    const restartBtn = document.getElementById('restart');
+function drawCircle(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+}
 
-    const MAX_SCORE = 5;
+function drawText(text, x, y, color, size = "30px") {
+    ctx.fillStyle = color;
+    ctx.font = `${size} Arial`;
+    ctx.fillText(text, x, y);
+}
 
-    let DPR = Math.max(1, window.devicePixelRatio || 1);
-    let W = 0, H = 0;
-    const margin = 10;
+function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.speedX = -ball.speedX;
+}
 
-    const state = {
-      paddleL: { x: 0, y: 0, w: 12, h: 90 },
-      paddleR: { x: 0, y: 0, w: 12, h: 90 },
-      ball:  { x: 0, y: 0, vx: 0, vy: 0, r: 8 },
-      scoreL: 0, scoreR: 0,
-      running: true,
-      paused: false,
-    };
+function update() {
+    if (!gameRunning || gameOver) return;
 
-    function setSize(){
-      DPR = Math.max(1, window.devicePixelRatio || 1);
-      W = Math.max(320, window.innerWidth);
-      H = Math.max(320, window.innerHeight);
-      canvas.style.width = W + 'px';
-      canvas.style.height = H + 'px';
-      canvas.width = Math.floor(W * DPR);
-      canvas.height = Math.floor(H * DPR);
-      ctx.setTransform(DPR,0,0,DPR,0,0);
+    ball.x += ball.speedX;
+    ball.y += ball.speedY;
 
-      const base = Math.min(W,H);
-      state.paddleL.w = state.paddleR.w = Math.max(10, Math.floor(base * 0.02));
-      state.paddleL.h = state.paddleR.h = Math.max(60, Math.floor(base * 0.18));
-      state.ball.r = Math.max(6, Math.floor(base * 0.02));
-
-      state.paddleL.x = margin;
-      state.paddleR.x = W - state.paddleR.w - margin;
-
-      // asegúrate de que las paletas permanezcan dentro
-      state.paddleL.y = clamp(state.paddleL.y || H/2, state.paddleL.h/2, H - state.paddleL.h/2);
-      state.paddleR.y = clamp(state.paddleR.y || H/2, state.paddleR.h/2, H - state.paddleR.h/2);
-
-      // overlay para orientación
-      rotateOverlay.style.display = (H > W) ? 'flex' : 'none';
+    if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+        ball.speedY = -ball.speedY;
     }
 
-    function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-
-    function centerBall(dir = (Math.random()<0.5? -1:1)){
-      state.ball.x = W/2; state.ball.y = H/2;
-      const speed = Math.max(240, Math.min(W,H) * 0.45);
-      const angle = (Math.random() * 0.6 - 0.3);
-      state.ball.vx = Math.cos(angle) * speed * dir;
-      state.ball.vy = Math.sin(angle) * speed;
+    if (
+        ball.x - ball.radius < player1.x + paddleWidth &&
+        ball.y > player1.y &&
+        ball.y < player1.y + paddleHeight
+    ) {
+        ball.speedX = -ball.speedX;
     }
 
-    // teclado
-    const keys = new Set();
-    window.addEventListener('keydown', e => { keys.add(e.code); if (e.code === 'Space') state.running = !state.running; });
-    window.addEventListener('keyup', e => keys.delete(e.code));
-
-    // touch controls (multi-touch, cada dedo controla su mitad)
-    const activeTouches = new Map();
-
-    canvas.addEventListener('touchstart', e => {
-      e.preventDefault();
-      for(const t of e.changedTouches){
-        const rect = canvas.getBoundingClientRect();
-        const x = t.clientX - rect.left, y = t.clientY - rect.top;
-        const side = (x < rect.width/2) ? 'L' : 'R';
-        activeTouches.set(t.identifier, side);
-        movePaddleTo(side, y);
-      }
-    }, {passive:false});
-
-    canvas.addEventListener('touchmove', e => {
-      e.preventDefault();
-      for(const t of e.changedTouches){
-        const side = activeTouches.get(t.identifier);
-        if(!side) continue;
-        const rect = canvas.getBoundingClientRect();
-        const y = t.clientY - rect.top;
-        movePaddleTo(side, y);
-      }
-    }, {passive:false});
-
-    canvas.addEventListener('touchend', e => {
-      for(const t of e.changedTouches) activeTouches.delete(t.identifier);
-    });
-
-    function movePaddleTo(side, targetY){
-      const p = (side === 'L') ? state.paddleL : state.paddleR;
-      p.y = clamp(targetY, p.h/2, H - p.h/2);
+    if (
+        ball.x + ball.radius > player2.x &&
+        ball.y > player2.y &&
+        ball.y < player2.y + paddleHeight
+    ) {
+        ball.speedX = -ball.speedX;
     }
 
-    function update(dt){
-      if(!state.running || state.paused) return;
-
-      // teclado mueve paletas
-      const speed = Math.max(260, H * 0.8);
-      if(keys.has('KeyW')) state.paddleL.y -= speed * dt;
-      if(keys.has('KeyS')) state.paddleL.y += speed * dt;
-      if(keys.has('ArrowUp')) state.paddleR.y -= speed * dt;
-      if(keys.has('ArrowDown')) state.paddleR.y += speed * dt;
-
-      // asegurar límites
-      state.paddleL.y = clamp(state.paddleL.y, state.paddleL.h/2, H - state.paddleL.h/2);
-      state.paddleR.y = clamp(state.paddleR.y, state.paddleR.h/2, H - state.paddleR.h/2);
-
-      // mover bola
-      state.ball.x += state.ball.vx * dt;
-      state.ball.y += state.ball.vy * dt;
-
-      // rebote techo/suelo
-      if((state.ball.y - state.ball.r <= 0 && state.ball.vy < 0) || (state.ball.y + state.ball.r >= H && state.ball.vy > 0)){
-        state.ball.vy *= -1;
-      }
-
-      // colisiones paletas
-      collideWithPaddle(state.paddleL, 1);
-      collideWithPaddle(state.paddleR, -1);
-
-      // marcar puntos
-      if(state.ball.x < -40){ // fuera a la izquierda -> punto derecha
-        state.scoreR++; scoreRightEl.textContent = state.scoreR; serve(false); checkVictory();
-      }
-      if(state.ball.x > W + 40){ // fuera a la derecha -> punto izquierda
-        state.scoreL++; scoreLeftEl.textContent = state.scoreL; serve(true); checkVictory();
-      }
+    if (ball.x - ball.radius < 0) {
+        player2.score++;
+        checkWinner();
+        resetBall();
     }
 
-    function collideWithPaddle(p, dir){
-      const bx = state.ball.x, by = state.ball.y, r = state.ball.r;
-      const px = p.x, py = p.y, pw = p.w, ph = p.h;
-      const left = px, right = px + pw, top = py - ph/2, bottom = py + ph/2;
-      if(bx + r > left && bx - r < right && by + r > top && by - r < bottom){
-        // hit position
-        const hitPos = (by - py) / (ph/2); // -1 top, 0 center, 1 bottom
-        const speed = Math.hypot(state.ball.vx, state.ball.vy);
-        let newAngle = hitPos * 0.7; // control del ángulo
-        const minHoriz = 0.25; // evita casi vertical
-        if(Math.abs(Math.cos(newAngle)) < Math.cos(minHoriz)){
-          newAngle = Math.sign(newAngle) * (Math.PI/2 - minHoriz);
-        }
-        // set velocities ensuring ball exits hacia fuera
-        state.ball.vx = Math.cos(newAngle) * speed * dir;
-        state.ball.vy = Math.sin(newAngle) * speed;
-        // separar la pelota de la paleta para no quedar atrapada
-        if(dir === 1) state.ball.x = right + r + 0.5; else state.ball.x = left - r - 0.5;
-        // leve aceleración
-        const boost = 1.03;
-        state.ball.vx *= boost; state.ball.vy *= boost;
-      }
+    if (ball.x + ball.radius > canvas.width) {
+        player1.score++;
+        checkWinner();
+        resetBall();
+    }
+}
+
+function checkWinner() {
+    if (player1.score >= 5 || player2.score >= 5) {
+        gameOver = true;
+        document.getElementById("btnReiniciar").style.display = "block";
+    }
+}
+
+function render() {
+    drawRect(0, 0, canvas.width, canvas.height, "black");
+    drawText(player1.score, canvas.width / 4, 50, "white", "40px");
+    drawText(player2.score, (canvas.width / 4) * 3, 50, "white", "40px");
+
+    drawRect(player1.x, player1.y, paddleWidth, paddleHeight, "white");
+    drawRect(player2.x, player2.y, paddleWidth, paddleHeight, "white");
+    drawCircle(ball.x, ball.y, ball.radius, "white");
+
+    if (!gameRunning && !gameOver) {
+        drawText("Toca para iniciar", canvas.width / 2 - 100, canvas.height / 2, "white");
     }
 
-    let serveTimeout = null;
-    function serve(toLeft = Math.random() < 0.5){
-      state.paused = true;
-      centerBall(toLeft ? -1 : 1);
-      // pequeña pausa para sacar
-      clearTimeout(serveTimeout);
-      serveTimeout = setTimeout(()=>{ state.paused = false; }, 450);
+    if (gameOver) {
+        let ganador = player1.score > player2.score ? "Jugador 1" : "Jugador 2";
+        drawText(`Ganador: ${ganador}`, canvas.width / 2 - 100, canvas.height / 2, "yellow");
     }
+}
 
-    function checkVictory(){
-      if(state.scoreL >= MAX_SCORE || state.scoreR >= MAX_SCORE){
-        state.running = false;
-        overlayText.textContent = state.scoreL >= MAX_SCORE ? 'Ganó Jugador Izquierdo' : 'Ganó Jugador Derecho';
-        overlay.style.display = 'flex';
-      }
+function gameLoop() {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+canvas.addEventListener("touchmove", (e) => {
+    let touch = e.touches[0];
+    if (touch.clientX < canvas.width / 2) {
+        player1.y = touch.clientY - paddleHeight / 2;
+    } else {
+        player2.y = touch.clientY - paddleHeight / 2;
     }
+});
 
-    function drawRoundedRect(x,y,w,h,r){
-      ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill();
+canvas.addEventListener("touchstart", () => {
+    if (!gameRunning && !gameOver) {
+        gameRunning = true;
     }
+});
 
-    function draw(){
-      // fondo
-      ctx.clearRect(0,0,W,H);
-      // paletas
-      ctx.fillStyle = 'rgba(255,255,255,0.98)';
-      drawRoundedRect(state.paddleL.x, state.paddleL.y - state.paddleL.h/2, state.paddleL.w, state.paddleL.h, 8);
-      drawRoundedRect(state.paddleR.x, state.paddleR.y - state.paddleR.h/2, state.paddleR.w, state.paddleR.h, 8);
-      // bola
-      ctx.beginPath(); ctx.arc(state.ball.x, state.ball.y, state.ball.r, 0, Math.PI*2); ctx.fill();
-    }
+document.getElementById("btnReiniciar").addEventListener("click", () => {
+    player1.score = 0;
+    player2.score = 0;
+    gameOver = false;
+    gameRunning = false;
+    document.getElementById("btnReiniciar").style.display = "none";
+});
 
-    let last = performance.now();
-    function loop(now){
-      const dt = Math.min(0.035, (now - last) / 1000);
-      last = now;
-      update(dt);
-      draw();
-      requestAnimationFrame(loop);
-    }
-
-    // reiniciar juego
-    restartBtn.addEventListener('click', ()=>{
-      state.scoreL = 0; state.scoreR = 0; scoreLeftEl.textContent = '0'; scoreRightEl.textContent = '0'; overlay.style.display = 'none'; state.running = true; state.paused = false; centerBall(Math.random()<0.5?-1:1);
-    });
-
-    // init
-    window.addEventListener('resize', ()=>{ setSize(); });
-    setSize();
-    // colocar paletas centradas
-    state.paddleL.y = H/2; state.paddleR.y = H/2;
-    centerBall(Math.random() < 0.5 ? -1 : 1);
-    requestAnimationFrame(loop);
-  })();
-  </script>
+gameLoop();
+</script>
 </body>
 </html>
 
