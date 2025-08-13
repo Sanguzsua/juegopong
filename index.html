@@ -3,171 +3,187 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pong Móvil</title>
+<title>Pong Responsive</title>
 <style>
     body {
-        background-color: black;
         margin: 0;
+        background: black;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
         overflow: hidden;
-        touch-action: none;
+        color: white;
+        font-family: Arial, sans-serif;
     }
     canvas {
-        display: block;
-        margin: auto;
         background: black;
+        display: block;
     }
-    #btnReiniciar {
+    #restartBtn {
         display: none;
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        padding: 10px 15px;
+        margin-top: 10px;
+        padding: 8px 16px;
+        font-size: 18px;
         background: white;
+        color: black;
         border: none;
-        font-size: 16px;
-        cursor: pointer;
         border-radius: 5px;
+        cursor: pointer;
     }
 </style>
 </head>
 <body>
-<canvas id="pong"></canvas>
-<button id="btnReiniciar">Reiniciar</button>
+
+<canvas id="gameCanvas"></canvas>
+<button id="restartBtn">Reiniciar</button>
 
 <script>
-const canvas = document.getElementById("pong");
+const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const restartBtn = document.getElementById("restartBtn");
 
-let paddleHeight = 100, paddleWidth = 20;
-let player1 = { x: 10, y: canvas.height / 2 - paddleHeight / 2, score: 0 };
-let player2 = { x: canvas.width - paddleWidth - 10, y: canvas.height / 2 - paddleHeight / 2, score: 0 };
-let ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 10, speedX: 5, speedY: 5 };
-let gameRunning = false;
-let gameOver = false;
+let paddleHeight, paddleWidth, ballSize;
+let paddleLeftY, paddleRightY, ballX, ballY, ballSpeedX, ballSpeedY;
+let leftScore = 0, rightScore = 0;
+let gameInterval, gameStarted = false;
 
-function drawRect(x, y, w, h, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, w, h);
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    paddleHeight = canvas.height * 0.2;
+    paddleWidth = canvas.width * 0.02;
+    ballSize = canvas.width * 0.02;
+
+    resetPositions();
 }
 
-function drawCircle(x, y, r, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.fill();
+function resetPositions() {
+    paddleLeftY = (canvas.height - paddleHeight) / 2;
+    paddleRightY = (canvas.height - paddleHeight) / 2;
+    ballX = canvas.width / 2;
+    ballY = canvas.height / 2;
+    ballSpeedX = canvas.width * 0.005;
+    ballSpeedY = canvas.height * 0.005;
 }
 
-function drawText(text, x, y, color, size = "30px") {
-    ctx.fillStyle = color;
-    ctx.font = `${size} Arial`;
-    ctx.fillText(text, x, y);
+function drawPaddle(x, y) {
+    ctx.fillStyle = "white";
+    ctx.fillRect(x, y, paddleWidth, paddleHeight);
 }
 
-function resetBall() {
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
-    ball.speedX = -ball.speedX;
+function drawBall() {
+    ctx.fillStyle = "white";
+    ctx.fillRect(ballX, ballY, ballSize, ballSize);
 }
 
-function update() {
-    if (!gameRunning || gameOver) return;
+function drawScore() {
+    ctx.font = `${canvas.width * 0.05}px Arial`;
+    ctx.fillText(leftScore, canvas.width * 0.25, 50);
+    ctx.fillText(rightScore, canvas.width * 0.75, 50);
+}
 
-    ball.x += ball.speedX;
-    ball.y += ball.speedY;
+function moveBall() {
+    ballX += ballSpeedX;
+    ballY += ballSpeedY;
 
-    if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
-        ball.speedY = -ball.speedY;
+    if (ballY <= 0 || ballY + ballSize >= canvas.height) {
+        ballSpeedY = -ballSpeedY;
     }
 
-    if (
-        ball.x - ball.radius < player1.x + paddleWidth &&
-        ball.y > player1.y &&
-        ball.y < player1.y + paddleHeight
-    ) {
-        ball.speedX = -ball.speedX;
+    // Paleta izquierda
+    if (ballX <= paddleWidth &&
+        ballY + ballSize >= paddleLeftY &&
+        ballY <= paddleLeftY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
     }
 
-    if (
-        ball.x + ball.radius > player2.x &&
-        ball.y > player2.y &&
-        ball.y < player2.y + paddleHeight
-    ) {
-        ball.speedX = -ball.speedX;
+    // Paleta derecha
+    if (ballX + ballSize >= canvas.width - paddleWidth &&
+        ballY + ballSize >= paddleRightY &&
+        ballY <= paddleRightY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
     }
 
-    if (ball.x - ball.radius < 0) {
-        player2.score++;
+    // Punto
+    if (ballX < 0) {
+        rightScore++;
         checkWinner();
-        resetBall();
+        resetPositions();
     }
-
-    if (ball.x + ball.radius > canvas.width) {
-        player1.score++;
+    if (ballX > canvas.width) {
+        leftScore++;
         checkWinner();
-        resetBall();
+        resetPositions();
     }
 }
 
 function checkWinner() {
-    if (player1.score >= 5 || player2.score >= 5) {
-        gameOver = true;
-        document.getElementById("btnReiniciar").style.display = "block";
-    }
-}
-
-function render() {
-    drawRect(0, 0, canvas.width, canvas.height, "black");
-    drawText(player1.score, canvas.width / 4, 50, "white", "40px");
-    drawText(player2.score, (canvas.width / 4) * 3, 50, "white", "40px");
-
-    drawRect(player1.x, player1.y, paddleWidth, paddleHeight, "white");
-    drawRect(player2.x, player2.y, paddleWidth, paddleHeight, "white");
-    drawCircle(ball.x, ball.y, ball.radius, "white");
-
-    if (!gameRunning && !gameOver) {
-        drawText("Toca para iniciar", canvas.width / 2 - 100, canvas.height / 2, "white");
-    }
-
-    if (gameOver) {
-        let ganador = player1.score > player2.score ? "Jugador 1" : "Jugador 2";
-        drawText(`Ganador: ${ganador}`, canvas.width / 2 - 100, canvas.height / 2, "yellow");
+    if (leftScore >= 5 || rightScore >= 5) {
+        clearInterval(gameInterval);
+        ctx.fillStyle = "white";
+        ctx.font = `${canvas.width * 0.08}px Arial`;
+        ctx.fillText("¡Ganador!", canvas.width / 2 - 100, canvas.height / 2);
+        restartBtn.style.display = "block";
     }
 }
 
 function gameLoop() {
-    update();
-    render();
-    requestAnimationFrame(gameLoop);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawPaddle(0, paddleLeftY);
+    drawPaddle(canvas.width - paddleWidth, paddleRightY);
+    drawBall();
+    drawScore();
+    moveBall();
 }
 
-canvas.addEventListener("touchmove", (e) => {
-    let touch = e.touches[0];
-    if (touch.clientX < canvas.width / 2) {
-        player1.y = touch.clientY - paddleHeight / 2;
-    } else {
-        player2.y = touch.clientY - paddleHeight / 2;
+canvas.addEventListener("touchmove", function(e) {
+    if (e.touches.length === 2) {
+        // Primer dedo controla izquierda
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+
+        if (touch1.clientX < canvas.width / 2) {
+            paddleLeftY = touch1.clientY - paddleHeight / 2;
+        }
+        if (touch2.clientX > canvas.width / 2) {
+            paddleRightY = touch2.clientY - paddleHeight / 2;
+        }
+    } else if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        if (touch.clientX < canvas.width / 2) {
+            paddleLeftY = touch.clientY - paddleHeight / 2;
+        } else {
+            paddleRightY = touch.clientY - paddleHeight / 2;
+        }
     }
 });
 
-canvas.addEventListener("touchstart", () => {
-    if (!gameRunning && !gameOver) {
-        gameRunning = true;
+canvas.addEventListener("click", function() {
+    if (!gameStarted) {
+        gameStarted = true;
+        gameInterval = setInterval(gameLoop, 1000 / 60);
     }
 });
 
-document.getElementById("btnReiniciar").addEventListener("click", () => {
-    player1.score = 0;
-    player2.score = 0;
-    gameOver = false;
-    gameRunning = false;
-    document.getElementById("btnReiniciar").style.display = "none";
+restartBtn.addEventListener("click", function() {
+    leftScore = 0;
+    rightScore = 0;
+    restartBtn.style.display = "none";
+    resetPositions();
+    gameInterval = setInterval(gameLoop, 1000 / 60);
 });
 
-gameLoop();
+window.addEventListener("resize", resizeCanvas);
+
+// Inicialización
+resizeCanvas();
+ctx.fillStyle = "white";
+ctx.font = `${canvas.width * 0.05}px Arial`;
+ctx.fillText("Toca la pantalla para iniciar", canvas.width / 4, canvas.height / 2);
 </script>
+
 </body>
 </html>
-
